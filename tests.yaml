@@ -1,0 +1,94 @@
+
+schemaVersion: "2.0.0"
+
+
+globalEnvVars:
+  - key: "PROXY_PASS"
+    value: "http://localhost"
+
+
+commandTests:
+
+  - name: "htpasswd installed properly"
+    command: "which"
+    args: [ "htpasswd" ]
+    expectedOutput: [ "/usr/bin/htpasswd\n" ]
+
+  - name: "nginx config is valid"
+    setup: [ [ "/entrypoint.sh" ] ]
+    envVars:
+      - key: "HTPASSWD_USERNAME"
+        value: "user"
+      - key: "HTPASSWD_PASSWORD"
+        value: "secret"
+    command: "nginx"
+    args: [ "-t" ]
+    exitCode: 0
+
+  - name: "PROXY_PASS is passed in nginx config"
+    setup: [ [ "/entrypoint.sh" ] ]
+    envVars:
+      - key: "HTPASSWD_USERNAME"
+        value: "user"
+      - key: "HTPASSWD_PASSWORD"
+        value: "secret"
+    command: "grep"
+    args: [ "-c", "http://localhost", "/etc/nginx/conf.d/default.conf" ]
+    excludedOutput: [ "0\n" ]
+
+  - name: "AUTH_BASIC_TITLE is passed in nginx config"
+    setup: [ [ "/entrypoint.sh" ] ]
+    envVars:
+      - key: "HTPASSWD_USERNAME"
+        value: "user"
+      - key: "HTPASSWD_PASSWORD"
+        value: "secret"
+      - key: "AUTH_BASIC_TITLE"
+        value: "Nginx requires basic auth!"
+    command: "grep"
+    args: [ "-c", "Nginx requires basic auth!", "/etc/nginx/conf.d/default.conf" ]
+    excludedOutput: [ "0\n" ]
+
+  - name: "Fails without /.htpasswd if HTPASSWD_USERNAME is not set"
+    envVars:
+      - key: "HTPASSWD_PASSWORD"
+        value: "secret"
+    command: "/entrypoint.sh"
+    args: [ "sh" ]
+    expectedError: [ "you must provide both HTPASSWD_USERNAME and HTPASSWD_PASSWORD" ]
+    exitCode: 1
+
+  - name: "Fails without /.htpasswd if HTPASSWD_PASSWORD is not set"
+    envVars:
+      - key: "HTPASSWD_USERNAME"
+        value: "user"
+    command: "/entrypoint.sh"
+    args: [ "sh" ]
+    expectedError: [ "you must provide both HTPASSWD_USERNAME and HTPASSWD_PASSWORD" ]
+    exitCode: 1
+
+  - name: "Generates /.htpasswd if both HTPASSWD_USERNAME and HTPASSWD_PASSWORD are set and no /.htpasswd is mounted"
+    envVars:
+      - key: "HTPASSWD_USERNAME"
+        value: "user"
+      - key: "HTPASSWD_PASSWORD"
+        value: "secret"
+    command: "/entrypoint.sh"
+    args: [ "sh" ]
+    expectedOutput: [ "Generating /.htpasswd using HTPASSWD_USERNAME and HTPASSWD_PASSWORD..." ]
+    excludedError: [ "you must provide both HTPASSWD_USERNAME and HTPASSWD_PASSWORD" ]
+    exitCode: 0
+
+
+fileExistenceTests:
+
+  - name: 'Default nginx config'
+    path: '/etc/nginx/conf.d/default.conf'
+    shouldExist: true
+
+
+metadataTest:
+  env:
+    - key: AUTH_BASIC_TITLE
+      value: "Restricted Area"
+  exposedPorts: [ "80" ]
